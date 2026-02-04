@@ -1,9 +1,8 @@
 /**************************************************************************/
-//Name:  main.c																														//
-//Purpose:  Skeleton project with configuration for ADC, DAC, MCG and PIT	//
-//Author:  Ethan Hettwer																									//
-//Revision:  1.0 15Sept2014 EH Initial Revision														//
-//Target:  Freescale K22f																									//
+//Name:  main.c	
+//Purpose:  Main program for Warbling Wire HW1
+//Author: Dylan Malsed																									
+//Target:  Freescale K22f						
 /**************************************************************************/
 
 #include "MK22F51212.h"                 				//Device header

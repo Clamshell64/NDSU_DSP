@@ -1,9 +1,8 @@
 /**************************************************************************/
-//Name:  main.c																														//
-//Purpose:  Skeleton project with configuration for ADC, DAC, MCG and PIT	//
-//Author:  Ethan Hettwer																									//
-//Revision:  1.0 15Sept2014 EH Initial Revision														//
-//Target:  Freescale K22f																									//
+//Name:  main.c	
+//Purpose:  Main program for Spectral Inverter HW2 
+//Author: Dylan Malsed																									
+//Target:  Freescale K22f						
 /**************************************************************************/
 
 #include "MK22F51212.h"                 				//Device header
@@ -13,9 +12,12 @@
 #include "DAC.h"																//DAC Header
 
 uint16_t adc_measurement;
-uint16_t pit_counter = 0;
-const uint16_t pit_counter_max = 20000; // 2 seconds worth of interrupts @ 10kHz
-float warble_factor = 0.1f; // scale amplitude of signal; 10% to 100%. Start at 10%
+uint8_t spectral_invert_toggle = 0; // toggles every interrupt togive a reference for spectral inversion
+uint8_t kill_sample_toggle = 0; // toggles every other interrupt to kill every other sample
+const int dac_mid = 2048; // mid scale for 12 bit DAC
+
+//const uint16_t pit_counter_max = 20000; // 2 seconds worth of interrupts @ 10kHz
+//float warble_factor = 0.1f; // scale amplitude of signal; 10% to 100%. Start at 10%
 
 /* small software delay utility function */
 static void delay(volatile uint32_t d){ while(d--) __NOP(); }
@@ -62,27 +64,38 @@ void PIT0_IRQHandler(void){	//This function is called when the timer interrupt e
 	adc_measurement = ADC0->R[0]; // read conversion result
 	/* ----------- DAC WRITE --------- */
 
-	// ---------- calculate warble based on pit_counter ----------
-	if (pit_counter < (pit_counter_max / 2)){
-		//going up
-		warble_factor = 0.1f + (0.9f * (float)pit_counter/((float)pit_counter_max/2));
-		if (warble_factor > 1.0f) warble_factor = 1.0f; // cap at 100%
-	} else {
-		//going down
-		warble_factor = 1.0f - (0.9f * (float)(pit_counter - pit_counter_max/2)/((float)pit_counter_max/2));
-		if (warble_factor < 0.1f) warble_factor = 0.1f; // cap at 10%
-	}
-	// --------------------------------------------------
+	// ---------------- Problem 1 logic ----------------
+	//spectral inversion logic 
 
-	// output dac value with warble applied
-	DAC_SetRaw((uint16_t)((float)adc_measurement * warble_factor)); // write ADC reading to DAC
+	// if (spectral_invert_toggle) {
+	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
+	// }
+	// spectral_invert_toggle = !spectral_invert_toggle; // toggle spectral inversion flag
+	
+	// ---------------- Problem 2 logic ----------------
+
+	// kill every other sample while applying spectral inversion logic to the ones that stay
+	// if (kill_sample_toggle) {
+	// 	adc_measurement = dac_mid; // set to mid scale to "kill" sample
+	// }
+	// if (spectral_invert_toggle) {
+	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
+	// }
+	// kill_sample_toggle = !kill_sample_toggle; // toggle kill sample flag
+	// spectral_invert_toggle = kill_sample_toggle ? spectral_invert_toggle : !spectral_invert_toggle; // toggle spectral inversion only when not killing sample
+
+	// --------------- Problem 3 logic ----------------`
+	// adjustable resolution digital wire 
+	// mess with 12-bit DAC resolution by AND masking upper bits with 1 and lower bits with 0
+	adc_measurement = adc_measurement & 0xC00; // keep upper 6 bits -> 6-bit resolution
+
+
+
+
+	/* output to dac */ 
+	DAC_SetRaw(adc_measurement);
 	/* ------------------------------- */
 	
-	// loop pit counter
-	pit_counter++;
-	if(pit_counter >= pit_counter_max){
-		pit_counter = 0;
-	}
 }
 
 
