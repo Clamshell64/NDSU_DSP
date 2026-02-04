@@ -1,11 +1,17 @@
 # ECE 644
-# Super WIP Guide
+# Dylan Malsed's Guide to the Digital Universe
+
+## A quick note on the repo
+- putting all my stuff on GitHub is a way for me to ensure I don't lose all my work if my computer breaks.
+- I'm making the repo public because I think future students who take this class may find it helpful to learn from my mistakes, in order that they may may make newer, more intelligent mistakes!
+- if you are a potential employer, please offer me a job immediately🌝
+
 ## Install & set up Keil v5
 - Always install Keil in your OS main dir (C:) or you might have problems with the pack installer not working correctly. Here's how I set up my folder (C:/Keil_v5): 
 
 
 
-![alt text](install_folder_setup.png)
+![alt text](doc/install_folder_setup.png)
 - You'll have to make **Keil_Packs** and **Keil_Projects** folders yourself. **Install Keil directly inside Keil_v5/**
 
 ## Process
@@ -18,6 +24,6 @@
 - You need the ARM v5 compiler on your computer in order to build your project. If your Keil installation somehow doesn't include it (it didn't for me), you'll have to install it manually. 
 - Get it [here.](https://developer.arm.com/downloads/view/ACOMP5?sortBy=availableBy&revision=r5p6-07rel1) (btw you'll need to make an ARM account to access the download. It's annoying.)
 - Look for 
-![alt text](arm_compiler_5_06_download.png) 
+![alt text](doc/arm_compiler_5_06_download.png) 
 - install the compiler in a folder called ARMCC inside Keil_v5/ARM/
 - (provide instructions on how to tell Keil to use the compiler)

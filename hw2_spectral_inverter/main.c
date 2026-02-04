@@ -52,6 +52,12 @@ void LED_cycle(void){
 }
 
 
+void onboard_Pushbutton_Init(void){ // initialize onboard pushbutton switches
+	SIM->SCGC5 |= SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK; // SW2 on PORTB, SW3 on PORTC
+	
+}
+
+
 void PIT0_IRQHandler(void){	//This function is called when the timer interrupt expires
 	//Place Interrupt Service Routine Here
 	NVIC_ClearPendingIRQ(PIT0_IRQn);							//Clears interrupt flag in NVIC Register
