@@ -13,14 +13,18 @@
 
 #define SW2_PIN		1u	// PORTB Pin 1
 #define SW3_PIN		17u	// PORTC Pin 17
+#define DAC_MID     2048 // mid scale for 12 bit DAC
+
+// flags that set to 1 iff a switch was just pressed
+uint8_t sw2_just_pressed = 0;
+uint8_t sw3_just_pressed = 0;
 
 uint16_t adc_measurement;
+uint16_t dac_bitmask = 0xFFF;//0xFFF; // default to 12-bit resolution (no bits masked)
+
 uint8_t spectral_invert_toggle = 0; // toggles every interrupt togive a reference for spectral inversion
 uint8_t kill_sample_toggle = 0; // toggles every other interrupt to kill every other sample
-const int dac_mid = 2048; // mid scale for 12 bit DAC
 
-//const uint16_t pit_counter_max = 20000; // 2 seconds worth of interrupts @ 10kHz
-//float warble_factor = 0.1f; // scale amplitude of signal; 10% to 100%. Start at 10%
 
 /* small software delay utility function */
 static void delay(volatile uint32_t d){ while(d--) __NOP(); }
@@ -57,18 +61,25 @@ void LED_cycle(void){
 
 void onboard_Pushbutton_Init(void){ // initialize onboard pushbutton switches (switches active low)
 	SIM->SCGC5 |= SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK; // SW2 on PORTB, SW3 on PORTC
-	PORTB->PCR[SW2_PIN] = PORT_PCR_MUX(1) | PORT_PCR_PE_MASK | PORT_PCR_PS_MASK;  // Set PORTB Pin 1 (SW2) to GPIO
-	PORTC->PCR[SW3_PIN] = PORT_PCR_MUX(1) | PORT_PCR_PE_MASK | PORT_PCR_PS_MASK;  // Set PORTC Pin 17 (SW3) to GPIO
-	// configure SW2 & SW3 as inputs (PDDR - pin direction: 0 = input)
-	PTB->PDDR &= ~(1u<<SW2_PIN);
-	PTC->PDDR &= ~(1u<<SW3_PIN);
+	// SW2 is the button towards the center of the board
+	PORTC->PCR[1] = PORT_PCR_MUX(1); 
+	GPIOC->PDDR &= ~(1 << SW2_PIN);
+	// SW3 is the button towards the edge of the board
+	PORTB->PCR[17] = PORT_PCR_MUX(1); 
+	GPIOB->PDDR &= ~(1 << SW3_PIN);
 	
 }
 
 
 int SW2_Pressed(void){
-	return !(PTB->PDIR & (1u<<SW2_PIN)); // return true if SW2 is pressed (active low)
+	return !(PTC->PDIR & (1u<<SW2_PIN)); // return true if SW2 is pressed (active low)
 }
+
+
+int SW3_Pressed(void){
+	return !(PTB->PDIR & (1u<<SW3_PIN)); // return true if SW3 is pressed (active low)
+}
+
 
 
 void PIT0_IRQHandler(void){	//This function is called when the timer interrupt expires
@@ -77,10 +88,8 @@ void PIT0_IRQHandler(void){	//This function is called when the timer interrupt e
 	PIT->CHANNEL[0].TFLG	= PIT_TFLG_TIF_MASK;		//Clears interrupt flag in PIT Register		
 	
 	/* ----------  ADC READ ---------- */
-	ADC0->SC1[0] = ADC_SC1_ADCH(0); // set flag to start ADC conversion
-	
-	while(!(ADC0->SC1[0] & ADC_SC1_COCO_MASK)); // wait for conversion complete
 	adc_measurement = ADC0->R[0]; // read conversion result
+	ADC0->SC1[0] = ADC_SC1_ADCH(0); // set flag to start ADC conversion	
 	/* ----------- DAC WRITE --------- */
 
 	// ---------------- Problem 1 logic ----------------
@@ -93,28 +102,26 @@ void PIT0_IRQHandler(void){	//This function is called when the timer interrupt e
 	
 	// ---------------- Problem 2 logic ----------------
 
-	// // kill every other sample while applying spectral inversion logic to the ones that stay
-	// if (kill_sample_toggle) {
-	// 	adc_measurement = dac_mid; // set to mid scale to "kill" sample
-	// }
-	// if (spectral_invert_toggle) {
-	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
-	// }
-	// kill_sample_toggle = !kill_sample_toggle; // toggle kill sample flag
-	// spectral_invert_toggle = kill_sample_toggle ? spectral_invert_toggle : !spectral_invert_toggle; // toggle spectral inversion only when not killing sample
+	// kill every other sample while applying spectral inversion logic to the ones that stay
+	if (kill_sample_toggle) {
+		adc_measurement = DAC_MID; // set to mid scale to "kill" sample
+	}
+	if (spectral_invert_toggle) {
+		adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
+	}
+	kill_sample_toggle = !kill_sample_toggle; // toggle kill sample flag
+	spectral_invert_toggle = kill_sample_toggle ? spectral_invert_toggle : !spectral_invert_toggle; // toggle spectral inversion only when not killing sample
 
 	// --------------- Problem 3 logic ----------------`
-	// adjustable resolution digital wire 
-	// mess with 12-bit DAC resolution by AND masking upper bits with 1 and lower bits with 0
-	// adc_measurement = adc_measurement & 0xC00; // keep upper 6 bits -> 6-bit resolution
+	//adjustable resolution digital wire 
+	//mess with 12-bit DAC resolution by AND masking upper bits with 1 and lower bits with 0
+	//adc_measurement = adc_measurement & dac_bitmask; // keep upper 6 bits -> 6-bit resolution
 
 
 
 
 	/* output to dac */ 
-	if(SW2_Pressed()){
-		DAC_SetRaw(adc_measurement);
-	}
+	DAC_SetRaw(adc_measurement);
 	/* ------------------------------- */
 	
 }
