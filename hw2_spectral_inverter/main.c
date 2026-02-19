@@ -145,9 +145,9 @@ int main(void){
 		// 	PTA->PSOR = (1u<<1);
 		// }
 		// LED_cycle();
-		// for (uint16_t v = 0; v <= 4095u; ++v){
-		// 	DAC_SetRaw(v);
-		// 	delay(10000u); // ~pause so you can observe each voltage
-		// }
+		for (uint16_t v = 0; v <= 4095u; ++v){
+			DAC_SetRaw(v);
+			delay(10000u); // ~pause so you can observe each voltage
+		}
 	}
 }
