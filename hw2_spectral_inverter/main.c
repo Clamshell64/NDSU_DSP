@@ -103,14 +103,14 @@ void PIT0_IRQHandler(void){	//This function is called when the timer interrupt e
 	// ---------------- Problem 2 logic ----------------
 
 	// kill every other sample while applying spectral inversion logic to the ones that stay
-	if (kill_sample_toggle) {
-		adc_measurement = DAC_MID; // set to mid scale to "kill" sample
-	}
-	if (spectral_invert_toggle) {
-		adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
-	}
-	kill_sample_toggle = !kill_sample_toggle; // toggle kill sample flag
-	spectral_invert_toggle = kill_sample_toggle ? spectral_invert_toggle : !spectral_invert_toggle; // toggle spectral inversion only when not killing sample
+	// if (kill_sample_toggle) {
+	// 	adc_measurement = DAC_MID; // set to mid scale to "kill" sample
+	// }
+	// if (spectral_invert_toggle) {
+	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
+	// }
+	// kill_sample_toggle = !kill_sample_toggle; // toggle kill sample flag
+	// spectral_invert_toggle = kill_sample_toggle ? spectral_invert_toggle : !spectral_invert_toggle; // toggle spectral inversion only when not killing sample
 
 	// --------------- Problem 3 logic ----------------`
 	//adjustable resolution digital wire 

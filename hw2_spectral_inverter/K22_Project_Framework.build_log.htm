@@ -28,23 +28,25 @@ Project File Date:  01/28/2026
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Rebuild target 'Target 1'
 compiling SVMFunctions.c...
+compiling ComplexMathFunctions.c...
 compiling FastMathFunctions.c...
 compiling BayesFunctions.c...
+compiling TimerInt.c...
+compiling BasicMathFunctions.c...
 compiling DistanceFunctions.c...
 compiling ControllerFunctions.c...
-compiling ComplexMathFunctions.c...
 compiling MatrixFunctions.c...
-compiling BasicMathFunctions.c...
-compiling StatisticsFunctions.c...
-assembling startup_MK22F51212.s...
-compiling DAC.c...
-compiling TimerInt.c...
 compiling MCG.c...
-compiling ADC.c...
+compiling StatisticsFunctions.c...
 compiling main.c...
 main.c(124): warning:  #223-D: function "DAC_SetRaw" declared implicitly
   	DAC_SetRaw(adc_measurement);
-main.c: 1 warning, 0 errors
+main.c(149): warning:  #223-D: function "DAC_SetRaw" declared implicitly
+  			DAC_SetRaw(v);
+main.c: 2 warnings, 0 errors
+compiling ADC.c...
+compiling DAC.c...
+assembling startup_MK22F51212.s...
 compiling SupportFunctions.c...
 compiling system_MK22F51212.c...
 compiling CommonTables.c...
@@ -54,9 +56,9 @@ linking...
 .\K22_Project_Framework.axf: Warning: L6914W: option ro-base ignored when using --scatter.
 .\K22_Project_Framework.axf: Warning: L6914W: option rw-base ignored when using --scatter.
 .\K22_Project_Framework.axf: Warning: L6340W: options first and last are ignored for link type of scattered
-Program Size: Code=2176 RO-data=1056 RW-data=12 ZI-data=2048  
+Program Size: Code=2116 RO-data=1056 RW-data=12 ZI-data=2048  
 Finished: 0 information, 3 warning and 0 error messages.
-".\K22_Project_Framework.axf" - 0 Error(s), 4 Warning(s).
+".\K22_Project_Framework.axf" - 0 Error(s), 5 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -85,28 +87,28 @@ Package Vendor: NXP
    * Component: ARM::CMSIS:CORE@5.4.0
 
    * Component: ARM::CMSIS:DSP&Source@1.8.0
+      Source file:   CMSIS/DSP/Source/StatisticsFunctions/StatisticsFunctions.c
       Include file:  CMSIS/DSP/Include/arm_math.h
-      Source file:   CMSIS/DSP/Source/BasicMathFunctions/BasicMathFunctions.c
+      Source file:   CMSIS/DSP/Source/SupportFunctions/SupportFunctions.c
       Source file:   CMSIS/DSP/Source/BayesFunctions/BayesFunctions.c
       Source file:   CMSIS/DSP/Source/ComplexMathFunctions/ComplexMathFunctions.c
-      Source file:   CMSIS/DSP/Source/CommonTables/CommonTables.c
-      Source file:   CMSIS/DSP/Source/FilteringFunctions/FilteringFunctions.c
-      Source file:   CMSIS/DSP/Source/FastMathFunctions/FastMathFunctions.c
-      Source file:   CMSIS/DSP/Source/TransformFunctions/TransformFunctions.c
-      Source file:   CMSIS/DSP/Source/StatisticsFunctions/StatisticsFunctions.c
       Source file:   CMSIS/DSP/Source/SVMFunctions/SVMFunctions.c
+      Source file:   CMSIS/DSP/Source/TransformFunctions/TransformFunctions.c
+      Source file:   CMSIS/DSP/Source/FilteringFunctions/FilteringFunctions.c
+      Source file:   CMSIS/DSP/Source/CommonTables/CommonTables.c
+      Source file:   CMSIS/DSP/Source/BasicMathFunctions/BasicMathFunctions.c
+      Source file:   CMSIS/DSP/Source/FastMathFunctions/FastMathFunctions.c
+      Source file:   CMSIS/DSP/Source/ControllerFunctions/ControllerFunctions.c
       Source file:   CMSIS/DSP/Source/MatrixFunctions/MatrixFunctions.c
       Source file:   CMSIS/DSP/Source/DistanceFunctions/DistanceFunctions.c
-      Source file:   CMSIS/DSP/Source/ControllerFunctions/ControllerFunctions.c
-      Source file:   CMSIS/DSP/Source/SupportFunctions/SupportFunctions.c
 
    * Component: NXP::Device:Startup@1.0.0
-      Source file:   arm/startup_MK22F51212.s
-      Include file:  system_MK22F51212.h
-      Include file:  MK22F51212_features.h
       Include file:  MK22F51212.h
-      Include file:  fsl_device_registers.h
+      Include file:  system_MK22F51212.h
+      Source file:   arm/startup_MK22F51212.s
       Source file:   system_MK22F51212.c
+      Include file:  fsl_device_registers.h
+      Include file:  MK22F51212_features.h
 Build Time Elapsed:  00:00:02
 </pre>
 </body>
