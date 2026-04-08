@@ -9,23 +9,20 @@
 #include "MCG.h"																//Clock header
 #include "TimerInt.h"														//Timer Interrupt Header
 #include "ADC.h"																//ADC Header
-#include "DAC.h"	
-#include "coef.h"															//DAC Header
+#include "DAC.h"
+#include "coef.h"													//DAC Header
 
-#define GLOBAL_GAIN  (1.0f / 10.561f)
 #define SW2_PIN		1u	// PORTB Pin 1
 #define SW3_PIN		17u	// PORTC Pin 17
 #define DAC_MID     2048 // mid scale for 12 bit DAC
 
-// flags that set to 1 iff a switch was just pressed
-uint8_t sw2_just_pressed = 0;
-uint8_t sw3_just_pressed = 0;
+uint8_t filter_mode = 0; // 0 = digital wire || 1 = f1: 250Hz || 2 = f1: 500Hz || 3 = f1: 1000Hz || 4 = f1: 2000Hz
+biquad_t *active_section; // allows us to switch between filter orders
+
+uint8_t sw2_pressed = 0;
+uint8_t sw3_pressed = 0;
 
 uint16_t adc_measurement;
-uint16_t dac_bitmask = 0xFFF;//0xFFF; // default to 12-bit resolution (no bits masked)
-
-uint8_t spectral_invert_toggle = 0; // toggles every interrupt togive a reference for spectral inversion
-uint8_t kill_sample_toggle = 0; // toggles every other interrupt to kill every other sample
 
 float sample; // global variable to hold current sample for debugging purposes
 float filtered; // global variable to hold filtered sample for debugging purposes
@@ -35,6 +32,8 @@ static void delay(volatile uint32_t d){ while(d--) __NOP(); }
 
 
 float biquad_step(biquad_t* section, float input){
+	// utilize structs to hold biquad coefficients & state variables for each section
+	// TDFII implementation
 	float output = section->b0*input + section->w1;
 	section->w1 = section->b1*input - section->a1*output + section->w2;
 	section->w2 = section->b2*input - section->a2*output;
@@ -44,8 +43,11 @@ float biquad_step(biquad_t* section, float input){
 
 float process_sample(float input){
 	float output = input;
-	for (int i = 0; i < NS; i++){
-		output = biquad_step(&sections[i], output);
+	
+	if (filter_mode != 0){
+		for (int i = 0; i < NS; i++){
+			output = biquad_step(&active_section[i], output);
+		}
 	}
 	return output;
 }
@@ -88,7 +90,6 @@ void onboard_Pushbutton_Init(void){ // initialize onboard pushbutton switches (s
 	// SW3 is the button towards the edge of the board
 	PORTB->PCR[17] = PORT_PCR_MUX(1); 
 	GPIOB->PDDR &= ~(1 << SW3_PIN);
-	
 }
 
 
@@ -102,53 +103,45 @@ int SW3_Pressed(void){
 }
 
 
-
-void PIT0_IRQHandler(void){	//This function is called when the timer interrupt expires
-	//Place Interrupt Service Routine Here
+void PIT0_IRQHandler(void){	// 10kS interrupt
 	NVIC_ClearPendingIRQ(PIT0_IRQn);							//Clears interrupt flag in NVIC Register
 	PIT->CHANNEL[0].TFLG	= PIT_TFLG_TIF_MASK;		//Clears interrupt flag in PIT Register		
-	
+
+	PTA->PSOR = (1u<<1); // Red LED off; stay off for duration of processing during interrupt
 	/* ----------  ADC READ ---------- */
 	adc_measurement = ADC0->R[0]; // read conversion result
 	ADC0->SC1[0] = ADC_SC1_ADCH(0); // set flag to start ADC conversion	
 	/* ----------- DAC WRITE --------- */
-
-	// ---------------- Problem 1 logic ----------------
-	//spectral inversion logic 
-
-	// if (spectral_invert_toggle) {
-	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
-	// }
-	// spectral_invert_toggle = !spectral_invert_toggle; // toggle spectral inversion flag
-	
-	// ---------------- Problem 2 logic ----------------
-
-	// kill every other sample while applying spectral inversion logic to the ones that stay
-	// if (kill_sample_toggle) {
-	// 	adc_measurement = DAC_MID; // set to mid scale to "kill" sample
-	// }
-	// if (spectral_invert_toggle) {
-	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
-	// }
-	// kill_sample_toggle = !kill_sample_toggle; // toggle kill sample flag
-	// spectral_invert_toggle = kill_sample_toggle ? spectral_invert_toggle : !spectral_invert_toggle; // toggle spectral inversion only when not killing sample
-
-	// --------------- Problem 3 logic ----------------`
-	//adjustable resolution digital wire 
-	//mess with 12-bit DAC resolution by AND masking upper bits with 1 and lower bits with 0
-	//adc_measurement = adc_measurement & dac_bitmask; // keep upper 6 bits -> 6-bit resolution
-
-
-
-
 	/* output to dac */ 
-	// apply DC offset to ensure filter method works
+	// apply DC offset to ensure filter method works (center the sample around 0 then process filter)
 	sample = (float)adc_measurement - 2048.0f;
 	filtered = process_sample(sample);
 	DAC_SetRaw((uint16_t)(filtered + 2048.0f));
-	//DAC_SetRaw(adc_measurement);
 	/* ------------------------------- */
-	
+	PTA->PCOR = (1u<<1); // Red LED on; indicate interrupt free time. The brighter the LED, the more processing time is left
+}
+
+
+void update_filter_coefficients(void){
+	switch (filter_mode){
+		case 0:
+			// digital wire
+			break;
+		case 1:
+			active_section = sections_250;
+			break;
+		case 2:
+			active_section = sections_500;
+			break;
+		case 3:
+			active_section = sections_1000;
+			break;
+		case 4:
+			active_section = sections_2000;
+			break;
+		default:
+			//don't care
+	}
 }
 
 
@@ -162,6 +155,32 @@ int main(void){
 	LED_Init();
 	
 	while(1){
-		// empty
+		// button test
+		
+		if (SW2_Pressed() && !sw2_pressed){
+			// call this code once when switch is pressed
+			sw2_pressed = 1;
+			filter_mode = (filter_mode + 1) % 5;
+			update_filter_coefficients();
+		}else if (sw2_pressed){
+			delay(10000); // simple & quick debounce method
+			if (!SW2_Pressed()){
+				sw2_pressed = 0;
+			}
+		}
+
+		if (SW3_Pressed() && !sw3_pressed){
+			// call this code once when switch is pressed
+			sw3_pressed = 1;
+			filter_mode = (filter_mode - 1 + 5) % 5; // wrap backwards
+			update_filter_coefficients();
+		}else if (sw3_pressed){
+			delay(10000); // simple & quick debounce method
+			if (!SW3_Pressed()){
+				sw3_pressed = 0;
+			}
+		}
 	}
 }
+
+
