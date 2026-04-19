@@ -1,6 +1,6 @@
 /**************************************************************************/
 //Name:  main.c	
-//Purpose:  Harmonizer Pedal for Guitar - ECE 644 Final Project
+//Purpose:  Main Program for Delay Pedal DSP final Project
 //Author: Dylan Malsed																									
 //Target:  Freescale K22f						
 /**************************************************************************/
@@ -9,21 +9,45 @@
 #include "MCG.h"																//Clock header
 #include "TimerInt.h"														//Timer Interrupt Header
 #include "ADC.h"																//ADC Header
-#include "DAC.h"																//DAC Header
+#include "DAC.h"
+#include "math.h"
+//#include "coef.h"													//DAC Header
 
 #define SW2_PIN		1u	// PORTB Pin 1
 #define SW3_PIN		17u	// PORTC Pin 17
 #define DAC_MID     2048 // mid scale for 12 bit DAC
 
-// flags that set to 1 iff a switch was just pressed
-uint8_t sw2_just_pressed = 0;
-uint8_t sw3_just_pressed = 0;
+#define PI 3.14159265359f
+#define BUFFER_SIZE 22000 // ~0.5 sec @ 44.1kHz
+#define WIN_SIZE 1000 // 30 ms window size in samples
+#define SAFETY_MARGIN 20 // extra samples to ensure we don't read uninitialized data due to phase wrap
+
+#define pitch_ratio 3.9f
+float phase_inc = 1.0f/WIN_SIZE; // phase increments over the window on a 0-1 scale. This is so we don't have to do indexing math in the interrupt.
+float delay_offset = (WIN_SIZE * pitch_ratio) + SAFETY_MARGIN; // how far behind to set the read index for the delay effect (in samples)
+float hann_table[WIN_SIZE];
+
+float phase1 = 0.0f;
+float read_idx1 = 0.0f; // use a float for the read index so we can do fractional increments with pitch_ratio. We will use interpolation to get the sample value.
+
+float phase2 = 0.5f; // 180 degree phase shift for second read index
+float read_idx2 = 0.0f;
+
+uint32_t write_idx = 0; // index for writing new samples into the buffer
+int16_t buffer[BUFFER_SIZE]; // circular buffer to hold audio samples
+
+uint8_t sw2_pressed = 0;
+uint8_t sw3_pressed = 0;
 
 uint16_t adc_measurement;
-uint16_t dac_bitmask = 0xFFF;//0xFFF; // default to 12-bit resolution (no bits masked)
+uint8_t effect_mode = 0; // 0=nothing, 1=delay
 
-uint8_t spectral_invert_toggle = 0; // toggles every interrupt togive a reference for spectral inversion
-uint8_t kill_sample_toggle = 0; // toggles every other interrupt to kill every other sample
+uint16_t output;
+float weight1;
+float weight2;
+
+float lp_out = 0.0f;
+float alpha = 0.2f;  // lower = more smoothing
 
 
 /* small software delay utility function */
@@ -67,7 +91,6 @@ void onboard_Pushbutton_Init(void){ // initialize onboard pushbutton switches (s
 	// SW3 is the button towards the edge of the board
 	PORTB->PCR[17] = PORT_PCR_MUX(1); 
 	GPIOB->PDDR &= ~(1 << SW3_PIN);
-	
 }
 
 
@@ -81,49 +104,105 @@ int SW3_Pressed(void){
 }
 
 
+void init_hann() {
+    for (int i = 0; i < WIN_SIZE; i++) {
+        float phase = (float)i / WIN_SIZE;
+        hann_table[i] = 0.5f * (1.0f - cosf(2.0f * 3.14159f * phase));
+    }
+}
 
-void PIT0_IRQHandler(void){	//This function is called when the timer interrupt expires
-	//Place Interrupt Service Routine Here
+
+float get_hann(float phase) {
+    if (phase < 0.0f) phase = 0.0f;
+    if (phase >= 1.0f) phase = 0.9999f;
+    int idx = (int)(phase * WIN_SIZE);
+    return hann_table[idx];
+}
+
+
+float buffer_wrap_add(float idx, float offset){
+	float result = idx + offset;
+	if (result >= BUFFER_SIZE){
+		result -= BUFFER_SIZE;
+	} else if (result < 0){
+		result += BUFFER_SIZE;
+	}
+	return result;
+}
+
+
+int16_t sample_frac_interp(float idx){
+	// get the integer and fractional parts of the read index
+	uint32_t idx_floor = (uint32_t)idx;
+	uint32_t idx_ceil  = (idx_floor + 1) % BUFFER_SIZE;  // wrap if at end of buffer
+	float frac = idx - idx_floor;
+
+	int16_t sample = (int16_t)(buffer[idx_floor] * (1.0f - frac) + buffer[idx_ceil] * frac);
+	return sample;
+}
+
+
+void PIT0_IRQHandler(void){	// 10kS interrupt
 	NVIC_ClearPendingIRQ(PIT0_IRQn);							//Clears interrupt flag in NVIC Register
 	PIT->CHANNEL[0].TFLG	= PIT_TFLG_TIF_MASK;		//Clears interrupt flag in PIT Register		
-	
+
+	PTA->PSOR = (1u<<1); // Red LED off; stay off for duration of processing during interrupt
 	/* ----------  ADC READ ---------- */
-	adc_measurement = ADC0->R[0]; // read conversion result
+	uint16_t adc_measurement = ADC0->R[0]; // read conversion result
 	ADC0->SC1[0] = ADC_SC1_ADCH(0); // set flag to start ADC conversion	
-	/* ----------- DAC WRITE --------- */
-
-	// ---------------- Problem 1 logic ----------------
-	//spectral inversion logic 
-
-	// if (spectral_invert_toggle) {
-	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
-	// }
-	// spectral_invert_toggle = !spectral_invert_toggle; // toggle spectral inversion flag
+	/* ----------- DELAY LOGIC & DAC WRITE --------- */
 	
-	// ---------------- Problem 2 logic ----------------
+	/*
+	keep a circular buffer of the last 20,000 samples (1 sec @ 20kS/s).
+	output the current sample to DAC just like usual, but to add delay, add the sample from 20,000 samples ago to the output
+	*/
 
-	// kill every other sample while applying spectral inversion logic to the ones that stay
-	// if (kill_sample_toggle) {
-	// 	adc_measurement = DAC_MID; // set to mid scale to "kill" sample
-	// }
-	// if (spectral_invert_toggle) {
-	// 	adc_measurement = 2048 - (adc_measurement - 2048); // invert around mid scale
-	// }
-	// kill_sample_toggle = !kill_sample_toggle; // toggle kill sample flag
-	// spectral_invert_toggle = kill_sample_toggle ? spectral_invert_toggle : !spectral_invert_toggle; // toggle spectral inversion only when not killing sample
+	buffer[write_idx] = adc_measurement - DAC_MID;
 
-	// --------------- Problem 3 logic ----------------`
-	//adjustable resolution digital wire 
-	//mess with 12-bit DAC resolution by AND masking upper bits with 1 and lower bits with 0
-	//adc_measurement = adc_measurement & dac_bitmask; // keep upper 6 bits -> 6-bit resolution
+	// -------- grab the samples we want from the buffer using the read indices, and apply the Hann window to them --------
 
+	int16_t sample_1 = sample_frac_interp(read_idx1); //buffer[(uint32_t)read_idx1]; // replace this with interpolation for fractional read index later
+	int16_t sample_2 = sample_frac_interp(read_idx2); //buffer[(uint32_t)read_idx2];
+	
+	weight1 = get_hann(phase1);
+	weight2 = get_hann(phase2);
 
+	output = (uint16_t)((weight1 * sample_1) + (weight2 * sample_2) + DAC_MID); // set output to be the weighted sum of the samples (using the Hann window)
 
+	// float dry = (float)(adc_measurement - DAC_MID);
+	// float wet = (weight1 * sample_1) + (weight2 * sample_2);
 
-	/* output to dac */ 
-	DAC_SetRaw(adc_measurement);
+	// float mix = (0.5f * dry) + (0.5f * wet); // 50/50 blend
+
+	// if (mix > 2047.0f)  mix = 2047.0f;
+	// if (mix < -2048.0f) mix = -2048.0f;
+	// output = (uint16_t)(mix + DAC_MID);
+
+	// -------- increment the read and write indices, wrapping as needed --------
+	read_idx1 = buffer_wrap_add(read_idx1, pitch_ratio);
+	read_idx2 = buffer_wrap_add(read_idx2, pitch_ratio);
+	phase1 += phase_inc;
+	phase2 += phase_inc;
+	if (phase1 >= 1.0f){
+		phase1 -= 1.0f; // wrap phase back to 0 after one full cycle
+		read_idx1 = buffer_wrap_add((float)write_idx, -delay_offset); // reset read index to be the correct offset behind the write index
+	}
+	if (phase2 >= 1.0f){
+		phase2 -= 1.0f; // wrap phase back to 0 after one full cycle
+		read_idx2 = buffer_wrap_add(read_idx1, -(WIN_SIZE / 2.0f));
+	}
+
+	// increment write index with wraparound
+	write_idx = (write_idx + 1) % BUFFER_SIZE;
+
+	if (effect_mode == 0){
+		DAC_SetRaw(output); // bypass mode
+	}else if (effect_mode == 1){
+		DAC_SetRaw(adc_measurement); 
+	}
+
 	/* ------------------------------- */
-	
+	PTA->PCOR = (1u<<1); // Red LED on; indicate interrupt free time. The brighter the LED, the more processing time is left
 }
 
 
@@ -135,8 +214,34 @@ int main(void){
 	TimerInt_Init();
 	onboard_Pushbutton_Init();
 	LED_Init();
+	init_hann();
+	read_idx1 = buffer_wrap_add(write_idx, -delay_offset);
+	read_idx2 = buffer_wrap_add(write_idx, -(delay_offset/2)); // second read index is 180 degrees out of phase with the first, so add half the buffer size to the offset
 	
 	while(1){
-		// empty
+		// button test
+		
+		if (SW2_Pressed() && !sw2_pressed){
+			// call this code once when switch is pressed
+			sw2_pressed = 1;
+			effect_mode = (effect_mode + 1) % 2;
+		}else if (sw2_pressed){
+			delay(10000); // simple & quick debounce method
+			if (!SW2_Pressed()){
+				sw2_pressed = 0;
+			}
+		}
+
+		if (SW3_Pressed() && !sw3_pressed){
+			// call this code once when switch is pressed
+			effect_mode = (effect_mode - 1 + 2) % 2; // wrap backwards
+		}else if (sw3_pressed){
+			delay(10000); // simple & quick debounce method
+			if (!SW3_Pressed()){
+				sw3_pressed = 0;
+			}
+		}
 	}
 }
+
+

@@ -21,31 +21,33 @@ Target DLL:      Segger\JL2CM3.dll V2.99.45.0
 Dialog DLL:      TCM.DLL V1.56.6.0
  
 <h2>Project:</h2>
-C:\Keil_v5\Keil_Projects\NDSU_DSP\hw4_audio_sampling\K22_Project_Framework.uvprojx
+C:\Keil_v5\Keil_Projects\NDSU_DSP\final_project_harmonizer_pedal\K22_Project_Framework.uvprojx
 Project File Date:  01/28/2026
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Rebuild target 'Target 1'
-compiling FastMathFunctions.c...
 compiling ComplexMathFunctions.c...
-compiling BayesFunctions.c...
-compiling SVMFunctions.c...
 compiling ControllerFunctions.c...
-compiling DAC.c...
-compiling DistanceFunctions.c...
+compiling SVMFunctions.c...
+compiling BayesFunctions.c...
 compiling BasicMathFunctions.c...
-compiling ADC.c...
-compiling MatrixFunctions.c...
-compiling main.c...
-main.c(124): warning:  #223-D: function "DAC_SetRaw" declared implicitly
-  	DAC_SetRaw(adc_measurement);
-main.c: 1 warning, 0 errors
-compiling MCG.c...
+compiling FastMathFunctions.c...
 compiling TimerInt.c...
+compiling DistanceFunctions.c...
+compiling MatrixFunctions.c...
+compiling ADC.c...
+compiling StatisticsFunctions.c...
+compiling MCG.c...
+compiling main.c...
+main.c(195): warning:  #223-D: function "DAC_SetRaw" declared implicitly
+  		DAC_SetRaw(output); // bypass mode
+main.c(197): warning:  #223-D: function "DAC_SetRaw" declared implicitly
+  		DAC_SetRaw(adc_measurement); 
+main.c: 2 warnings, 0 errors
+compiling DAC.c...
 assembling startup_MK22F51212.s...
 compiling SupportFunctions.c...
-compiling StatisticsFunctions.c...
 compiling CommonTables.c...
 compiling system_MK22F51212.c...
 compiling TransformFunctions.c...
@@ -54,9 +56,9 @@ linking...
 .\K22_Project_Framework.axf: Warning: L6914W: option ro-base ignored when using --scatter.
 .\K22_Project_Framework.axf: Warning: L6914W: option rw-base ignored when using --scatter.
 .\K22_Project_Framework.axf: Warning: L6340W: options first and last are ignored for link type of scattered
-Program Size: Code=2088 RO-data=1056 RW-data=12 ZI-data=2048  
+Program Size: Code=3876 RO-data=1120 RW-data=48 ZI-data=50144  
 Finished: 0 information, 3 warning and 0 error messages.
-".\K22_Project_Framework.axf" - 0 Error(s), 4 Warning(s).
+".\K22_Project_Framework.axf" - 0 Error(s), 5 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -85,27 +87,27 @@ Package Vendor: NXP
    * Component: ARM::CMSIS:CORE@5.4.0
 
    * Component: ARM::CMSIS:DSP&Source@1.8.0
-      Source file:   CMSIS/DSP/Source/BayesFunctions/BayesFunctions.c
       Include file:  CMSIS/DSP/Include/arm_math.h
-      Source file:   CMSIS/DSP/Source/BasicMathFunctions/BasicMathFunctions.c
-      Source file:   CMSIS/DSP/Source/FastMathFunctions/FastMathFunctions.c
-      Source file:   CMSIS/DSP/Source/DistanceFunctions/DistanceFunctions.c
-      Source file:   CMSIS/DSP/Source/SVMFunctions/SVMFunctions.c
-      Source file:   CMSIS/DSP/Source/TransformFunctions/TransformFunctions.c
       Source file:   CMSIS/DSP/Source/ComplexMathFunctions/ComplexMathFunctions.c
-      Source file:   CMSIS/DSP/Source/ControllerFunctions/ControllerFunctions.c
-      Source file:   CMSIS/DSP/Source/FilteringFunctions/FilteringFunctions.c
-      Source file:   CMSIS/DSP/Source/StatisticsFunctions/StatisticsFunctions.c
+      Source file:   CMSIS/DSP/Source/FastMathFunctions/FastMathFunctions.c
+      Source file:   CMSIS/DSP/Source/BayesFunctions/BayesFunctions.c
+      Source file:   CMSIS/DSP/Source/DistanceFunctions/DistanceFunctions.c
       Source file:   CMSIS/DSP/Source/CommonTables/CommonTables.c
-      Source file:   CMSIS/DSP/Source/SupportFunctions/SupportFunctions.c
+      Source file:   CMSIS/DSP/Source/FilteringFunctions/FilteringFunctions.c
       Source file:   CMSIS/DSP/Source/MatrixFunctions/MatrixFunctions.c
+      Source file:   CMSIS/DSP/Source/StatisticsFunctions/StatisticsFunctions.c
+      Source file:   CMSIS/DSP/Source/BasicMathFunctions/BasicMathFunctions.c
+      Source file:   CMSIS/DSP/Source/ControllerFunctions/ControllerFunctions.c
+      Source file:   CMSIS/DSP/Source/SVMFunctions/SVMFunctions.c
+      Source file:   CMSIS/DSP/Source/SupportFunctions/SupportFunctions.c
+      Source file:   CMSIS/DSP/Source/TransformFunctions/TransformFunctions.c
 
    * Component: NXP::Device:Startup@1.0.0
       Include file:  system_MK22F51212.h
-      Include file:  fsl_device_registers.h
+      Include file:  MK22F51212.h
       Include file:  MK22F51212_features.h
       Source file:   arm/startup_MK22F51212.s
-      Include file:  MK22F51212.h
+      Include file:  fsl_device_registers.h
       Source file:   system_MK22F51212.c
 Build Time Elapsed:  00:00:02
 </pre>

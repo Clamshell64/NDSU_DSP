@@ -1,6 +1,6 @@
 /**************************************************************************/
 //Name:  main.c	
-//Purpose:  Main program for Spectral Inverter HW2 
+//Purpose:  Main program for IIR filter HW6
 //Author: Dylan Malsed																									
 //Target:  Freescale K22f						
 /**************************************************************************/

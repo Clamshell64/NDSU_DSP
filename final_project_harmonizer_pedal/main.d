@@ -10,3 +10,4 @@
 .\main.o: TimerInt.h
 .\main.o: ADC.h
 .\main.o: DAC.h
+.\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
