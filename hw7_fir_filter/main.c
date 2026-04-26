@@ -24,21 +24,28 @@ uint8_t sw3_pressed = 0;
 uint16_t adc_measurement;
 
 uint16_t buffer_idx = 0; // index for circular buffer of coefficients
-float buffer[L]; // circular buffer to hold past L samples for FIR filter (1 for each order)
+uint16_t buffer[L]; // circular buffer to hold past L samples for FIR filter (1 for each order); stored in Q15 format
 
-float sample; // global variable to hold current sample for debugging purposes
-float filtered; // global variable to hold filtered sample for debugging purposes
 
 /* small software delay utility function */
 static void delay(volatile uint32_t d){ while(d--) __NOP(); }
 
 
+int16_t convert_to_q15(uint16_t input){
+	int16_t out = (int16_t)input - DAC_MID;
+	out = out << 4; // shift left 4 to get to q15
+	// clamp
+	if (out > 32767) out = 32767;
+    if (out < -32768) out = -32768;
+	return out;
+}
 
-uint16_t process_float_sample(uint16_t input){
-    float acc = 0.0f;
+
+uint16_t process_fixed_sample(uint16_t input){
+    int32_t acc = 0; // use a Q30 value to account for overflow so we can have more accuracy during intermediate steps
 
     // normalize to [-1, 1]
-    float x = ((float)input - DAC_MID) / DAC_MID;
+    int16_t x = convert_to_q15(input);
 
     buffer[buffer_idx] = x;
 
@@ -51,23 +58,18 @@ uint16_t process_float_sample(uint16_t input){
     // FIR
     for (int i = 0; i < L; i++){
         int idx = (buffer_idx - i + L) % L;
-        acc += buffer[idx] * coef[i];
+        acc += buffer[idx] * coef[i]; // q15*q15 = q30
     }
 
     buffer_idx = (buffer_idx + 1) % L;
 
+	acc = acc >> 15;
     // clamp output
-    if (acc > 1.0f) acc = 1.0f;
-    if (acc < -1.0f) acc = -1.0f;
-
+    if (acc > 32767) acc = 32767;
+    if (acc < -32768) acc = -32768;
     // back to DAC range
-    return (uint16_t)(acc * DAC_MID + DAC_MID);
+    return (uint16_t)((acc>>4) + DAC_MID);
 }
-
-
-// uint16_t process_fixed_sample(uint16_t input){
-
-// }
 
 
 void LED_Init(void){ // initialize RGB LED pins
@@ -131,34 +133,11 @@ void PIT0_IRQHandler(void){	// 10kS interrupt
 	/* ----------- DAC WRITE --------- */
 	/* output to dac */ 
 	// apply DC offset to ensure filter method works (center the sample around 0 then process filter)
-	uint16_t conditioned_sample = process_float_sample(adc_measurement);
+	uint16_t conditioned_sample = process_fixed_sample(adc_measurement);
 
 	DAC_SetRaw(conditioned_sample);
 	/* ------------------------------- */
 	PTA->PCOR = (1u<<1); // Red LED on; indicate interrupt free time. The brighter the LED, the more processing time is left
-}
-
-
-void update_filter_coefficients(void){
-	// switch (filter_mode){
-	// 	case 0:
-	// 		// digital wire
-	// 		break;
-	// 	case 1:
-	// 		active_section = sections_250;
-	// 		break;
-	// 	case 2:
-	// 		active_section = sections_500;
-	// 		break;
-	// 	case 3:
-	// 		active_section = sections_1000;
-	// 		break;
-	// 	case 4:
-	// 		active_section = sections_2000;
-	// 		break;
-	// 	default:
-	// 		//don't care
-	// }
 }
 
 
