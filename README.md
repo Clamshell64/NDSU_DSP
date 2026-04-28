@@ -1,5 +1,5 @@
 # ECE 644
-# Dylan Malsed's Guide to the Digital Universe
+# Dylan Malsed's Guide to DSP Setup
 
 ## A quick note on the repo
 - putting all my stuff on GitHub is a way for me to ensure I don't lose all my work if my computer breaks.
