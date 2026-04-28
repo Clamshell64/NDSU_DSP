@@ -42,14 +42,13 @@ int16_t convert_to_q15(uint16_t input){
 
 
 uint16_t process_fixed_sample(uint16_t input){
-    int32_t acc = 0; // use a Q30 value to account for overflow so we can have more accuracy during intermediate steps
+    int64_t acc = 0; // use a 64-bit value to account for overflow so we can have more accuracy during intermediate steps
 
-    // normalize to [-1, 1]
     int16_t x = convert_to_q15(input);
 
     buffer[buffer_idx] = x;
 
-    // digital wire (passthrough)
+    // digital wire (passthrough option)
     if (filter_mode == 0){
         buffer_idx = (buffer_idx + 1) % L;
         return input;
@@ -156,8 +155,7 @@ int main(void){
 		if (SW2_Pressed() && !sw2_pressed){
 			// call this code once when switch is pressed
 			sw2_pressed = 1;
-			filter_mode = (filter_mode + 1) % 5;
-			update_filter_coefficients();
+			filter_mode = (filter_mode + 1) % 2;
 		}else if (sw2_pressed){
 			delay(10000); // simple & quick debounce method
 			if (!SW2_Pressed()){
@@ -169,7 +167,6 @@ int main(void){
 			// call this code once when switch is pressed
 			sw3_pressed = 1;
 			filter_mode = (filter_mode - 1 + 2) % 2; // wrap backwards
-			update_filter_coefficients();
 		}else if (sw3_pressed){
 			delay(10000); // simple & quick debounce method
 			if (!SW3_Pressed()){

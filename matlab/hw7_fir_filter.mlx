@@ -1,0 +1,76 @@
+% Homework 7 - FIR filter EQ design
+% Dylan Malsed
+% minimize the ripples between Omegap and Omegas
+clear;
+filewrite = 1;
+Omegap = 0.1*pi; % passband digital freq
+Omegas = 0.4*pi; % stopband digital freq
+Lh = 201; 
+K = 10*Lh; % how many freq points to do
+k = (0:K-1); 
+Omegak = k*2*pi/K; % actual frequencies mapped along 0-2pi
+
+Q = 1.0*(Omegak < Omegap) + ...
+    10.0*(Omegak >= Omegap & Omegak < Omegas) + ...
+    1.0*(Omegak >= Omegas);
+
+Q(fix(K/2)+2:end) = Q(round(K/2):-1:2); % mirror Q for midpoint symmetry
+
+% Define the digital frequency thresholds
+w0 = 0*pi;
+w1 = 0.08*pi; 
+w2 = 0.17*pi; 
+w3 = 1*pi; 
+
+% Define piecewise magnitude |Hd| over 0 to pi
+
+mag_Hd = ...
+    (Omegak >= w0 & Omegak < w1) .* (-1.*Omegak + 2.3) + ...
+    (Omegak >= w1 & Omegak < w2) .* (-((6.*Omegak - 0.09*pi*8).^2) + 1.2) + ...
+    (Omegak >= w2 & Omegak <= w3) .* (exp(-4.*Omegak) + 0.01);
+
+
+
+Hd = mag_Hd .*exp(-1j*k*pi*(Lh-1)/K);
+
+plot(Omegak, abs(Hd));
+xlim([0, pi]);
+ylim([0, 2.5]);
+title("Desired Frequency Response");
+xlabel("Omega");
+ylabel("Gain");
+
+Hd(fix(K/2)+2:end) = conj(Hd(round(K/2):-1:2));
+l = (0:Lh-1)'; 
+a = exp(1j*l*Omegak)*Q.'/K; 
+b = exp(1j*l*Omegak)*(Hd.*Q/K).';
+A = toeplitz(a);
+h = (A\b);
+n = (0:Lh-1)'; 
+stem(n,abs(h));
+xlabel("n");
+ylabel("h");
+title("Impulse Response h");
+
+Omega = linspace(0,pi,1001); H = polyval(h,exp(1j*Omega)).*exp(-1j*(Lh-1)*Omega);
+plot(Omega/pi,(abs(H))); % norm scale
+title("Frequency Response of Hd");
+xlabel("Omega");
+ylabel("Gain");
+
+% Turn the filter coefficients h into fixed-point numbers
+
+h_q15 = round(h .* 32768);
+
+if filewrite ~= 0
+    fid = fopen('fir_coef.h','w');
+    fprintf(fid,'#define L %d \n',Lh);
+    % fill it with the coefficients
+    fprintf(fid,'int16_t coef[L] = {\n');
+    for n = 1:Lh,
+        fprintf(fid,'   %d,\n',h_q15(n));
+    end
+    fprintf(fid,'};');
+    fclose(fid);
+end
+
