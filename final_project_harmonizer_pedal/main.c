@@ -22,7 +22,7 @@
 #define WIN_SIZE 1000 // 30 ms window size in samples
 #define SAFETY_MARGIN 20 // extra samples to ensure we don't read uninitialized data due to phase wrap
 
-#define pitch_ratio 3.9f
+#define pitch_ratio 2.0f
 float phase_inc = 1.0f/WIN_SIZE; // phase increments over the window on a 0-1 scale. This is so we don't have to do indexing math in the interrupt.
 float delay_offset = (WIN_SIZE * pitch_ratio) + SAFETY_MARGIN; // how far behind to set the read index for the delay effect (in samples)
 float hann_table[WIN_SIZE];
