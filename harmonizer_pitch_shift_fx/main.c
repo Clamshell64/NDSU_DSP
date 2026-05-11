@@ -17,17 +17,17 @@
 #define SW3_PIN		17u	// PORTC Pin 17
 #define DAC_MID     2048 // mid scale for 12 bit DAC
 #define FS ((int)(60000000/INTERRUPT_CLOCKS))
-#define MAX_DELAY_MS 30 // how many ms back can we send the read heads
+#define MAX_DELAY_MS 40 // how many ms back can we send the read heads
 #define MAX_DELAY_SAMPLES ((int)(FS * (MAX_DELAY_MS / 1000.0f)))
 #define BUFFER_LENGTH (MAX_DELAY_SAMPLES + 4)
-#define CROSSFADE_LEN ((int)(0.01 * FS)) // length of the crossfade window: 10ms * sample rate
+#define CROSSFADE_LEN ((int)(0.02 * FS)) // length of the crossfade window: 10ms * sample rate
 
 // switch buttons
 uint8_t sw2_pressed = 0;
 uint8_t sw3_pressed = 0;
 uint8_t effect_mode = 0; // 0=nothing, 1=delay
 
-float pitch_factor = 1.189f;
+float pitch_factor =1.2599f;
 int delay_buffer[BUFFER_LENGTH];
 
 // crossfade hann window
@@ -297,7 +297,7 @@ int main(void){
 		if (SW2_Pressed() && !sw2_pressed){
 			// call this code once when switch is pressed
 			sw2_pressed = 1;
-			effect_mode = (effect_mode + 1) % 5;
+			effect_mode = (effect_mode + 1) % 2;
 		}else if (sw2_pressed){
 			delay(10000); // simple & quick debounce method
 			if (!SW2_Pressed()){
@@ -307,7 +307,7 @@ int main(void){
 
 		if (SW3_Pressed() && !sw3_pressed){
 			// call this code once when switch is pressed
-			effect_mode = (effect_mode - 1 + 2) % 5; // wrap backwards
+			effect_mode = (effect_mode - 1 + 2) % 2; // wrap backwards
 		}else if (sw3_pressed){
 			delay(10000); // simple & quick debounce method
 			if (!SW3_Pressed()){
