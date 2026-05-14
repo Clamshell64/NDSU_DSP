@@ -5,10 +5,10 @@
 //Target:  Freescale K22f						
 /**************************************************************************/
 
-#include "MK22F51212.h"                 				//Device header
-#include "MCG.h"																//Clock header
-#include "TimerInt.h"														//Timer Interrupt Header
-#include "ADC.h"																//ADC Header
+#include "MK22F51212.h"   //Device header
+#include "MCG.h"	      //Clock header
+#include "TimerInt.h"	  //Timer Interrupt Header
+#include "ADC.h"		  //ADC Header
 #include "DAC.h"
 #include "math.h"
 
@@ -20,14 +20,14 @@
 #define MAX_DELAY_MS 40 // how many ms back can we send the read heads
 #define MAX_DELAY_SAMPLES ((int)(FS * (MAX_DELAY_MS / 1000.0f)))
 #define BUFFER_LENGTH (MAX_DELAY_SAMPLES + 4)
-#define CROSSFADE_LEN ((int)(0.02 * FS)) // length of the crossfade window: 10ms * sample rate
+#define CROSSFADE_LEN ((int)(0.02 * FS)) // length of the crossfade window: 20ms * sample rate
 
 // switch buttons
 uint8_t sw2_pressed = 0;
-uint8_t sw3_pressed = 0;
-uint8_t effect_mode = 0; // 0=nothing, 1=delay
+uint8_t sw3_pressed = 0; // allows us to choose pitch shift
 
-float pitch_factor =1.2599f;
+float pitch_factor = 1.015f;
+float wet_mix = 0.5;
 int delay_buffer[BUFFER_LENGTH];
 
 // crossfade hann window
@@ -45,18 +45,17 @@ float delay2 = (float)MAX_DELAY_SAMPLES/2;
 // if 0, we just use crossfade_state to get 100% of the output audio for pitch shifting
 int crossfade_ctr = 0; 
 
-/* 	which read head are we getting 100% of our audio from?
-	*IF* we are not crossfading between two read heads, this will tell which one it is.
+ //which read head are we getting 100% of our audio from?
+ //*IF* we are not crossfading between two read heads, this will tell which one it is.
 	0 = read head 1; 1 = read head 2 */
 int crossfade_state = 0; 
 
 
-
-// small software delay utility function
+// small software delay utility function (used for onboard switch debounce)
 static void delay(volatile uint32_t d){ while(d--) __NOP(); }
 
 
-
+// helper method to wrap an int around at a certain fixed-point value(used for circular buffer indexing)
 int buffer_wrap_int(int n, int wrap_val){
 	int wrapped = n;
 	if (wrapped >= wrap_val){
@@ -67,7 +66,7 @@ int buffer_wrap_int(int n, int wrap_val){
 	return wrapped;
 }
 
-
+// helper method to wrap an float around at a certain fixed-point value(used for circular buffer indexing)
 float buffer_wrap_float(float n, float wrap_val){
 	float wrapped = n;
 	if (wrapped >= wrap_val){
@@ -78,13 +77,12 @@ float buffer_wrap_float(float n, float wrap_val){
 	return wrapped;
 }
 
-
+// fill an array with a hann window
 void init_hann_window(float *window, int N){
 	for (int n = 0; n<N; n++){
 		window[n] = 0.5f * (1.0f - cosf((2.0f * PI * n) / (N - 1)));
 	}
 }
-
 
 // initialize RGB LED pins
 void LED_Init(void){ 
@@ -104,19 +102,6 @@ void LED_Init(void){
 	PTD->PSOR = (1u<<5);
 }
 
-
-// simple LED test. Cycle through the onboard LED colors
-void LED_cycle(void){
-	/* PTA1 */
-	PTA->PCOR = (1u<<1); delay(4000000); PTA->PSOR = (1u<<1); delay(2000000);
-	/* PTA2 */
-	PTA->PCOR = (1u<<2); delay(4000000); PTA->PSOR = (1u<<2); delay(2000000);
-	/* PTD5 */
-	PTD->PCOR = (1u<<5); delay(4000000); PTD->PSOR = (1u<<5); delay(2000000);
-	delay(100000);
-}
-
-
 // initialize onboard pushbutton switches (switches active low)
 void onboard_Pushbutton_Init(void){ 
 	SIM->SCGC5 |= SIM_SCGC5_PORTB_MASK | SIM_SCGC5_PORTC_MASK; // SW2 on PORTB, SW3 on PORTC
@@ -128,7 +113,6 @@ void onboard_Pushbutton_Init(void){
 	GPIOB->PDDR &= ~(1 << SW3_PIN);
 }
 
-
 // pushbutton helpers
 int SW2_Pressed(void){
 	return !(PTC->PDIR & (1u<<SW2_PIN)); // return true if SW2 is pressed (active low)
@@ -136,19 +120,6 @@ int SW2_Pressed(void){
 int SW3_Pressed(void){
 	return !(PTB->PDIR & (1u<<SW3_PIN)); // return true if SW3 is pressed (active low)
 }
-
-
-
-// float buffer_wrap_add(float idx, float offset){
-// 	float result = idx + offset;
-// 	if (result >= BUFFER_SIZE){
-// 		result -= BUFFER_SIZE;
-// 	} else if (result < 0){
-// 		result += BUFFER_SIZE;
-// 	}
-// 	return result;
-// }
-
 
 void PIT0_IRQHandler(void){	
 	NVIC_ClearPendingIRQ(PIT0_IRQn);							//Clears interrupt flag in NVIC Register
@@ -187,7 +158,6 @@ void PIT0_IRQHandler(void){
 	int rp1_sample = ((1 - rp1_frac) * delay_buffer[rp1_a]) + (rp1_frac * delay_buffer[rp1_b]);
 	int rp2_sample = ((1 - rp2_frac) * delay_buffer[rp2_a]) + (rp2_frac * delay_buffer[rp2_b]);
 
-
 	// if we are in a crossfade range, apply different weights to rp1,2_sample to get output
 	// if we are NOT in a crossfade range, choose sample based on crossfade state
 	if (crossfade_ctr > 0){
@@ -204,7 +174,6 @@ void PIT0_IRQHandler(void){
 		if (crossfade_ctr == 0){
 			crossfade_state = !crossfade_state;
 		}
-		
 	}else{
 		if (crossfade_state == 0){
 			output = rp1_sample;
@@ -237,17 +206,17 @@ void PIT0_IRQHandler(void){
 		}
 	}
 
-	// mix wet and dry signals 50/50
-	output = (0.5 * output) + (0.5 * adc_in);
+	// mix wet and dry signals
+	output = (wet_mix * output) + ((1-wet_mix)* adc_in);
 
 	output += DAC_MID; // apply dac midpoint again
-	if (effect_mode == 0){
-		DAC_SetRaw(output); // bypass mode
-	}else if (effect_mode == 1){
-		DAC_SetRaw(adc_in);
-	}
-	//DAC_SetRaw(output);
 
+
+	if (effect_mode == 6){
+		DAC_SetRaw(adc_in); // bypass mode
+	}else {
+		DAC_SetRaw(output);
+	}
 	// increment the circular buffer write index
 	write_idx++;
 	write_idx = buffer_wrap_int(write_idx, BUFFER_LENGTH);
@@ -255,7 +224,6 @@ void PIT0_IRQHandler(void){
 	/* ------------------------------- */
 	PTA->PCOR = (1u<<1); // Red LED on; indicate interrupt free time. The brighter the LED, the more processing time is left
 }
-
 
 int main(void){
 	MCG_Clock120_Init();
@@ -266,38 +234,34 @@ int main(void){
 	onboard_Pushbutton_Init();
 	LED_Init();
 	init_hann_window(crossfade_win, CROSSFADE_LEN*2);
-
-
 	while(1){
-		// button test
 		
-		// switch (effect_mode) {
-		// 	case 0:
-		// 		// code to execute if expression == value1
-		// 		pitch_factor = 0;
-		// 		break;
-		// 	case 1:
-		// 		// code to execute if expression == value2
-		// 		pitch_factor = 1.2599;
-		// 		break;
-		// 	case 2:
-		// 		pitch_factor = 1.1892;
-		// 		break;
-		// 	case 3:
-		// 		pitch_factor = 1.3348;
-		// 		break;
-		// 	case 4:
-		// 		pitch_factor = 1.4983;
-		// 		break;
-		// 	/* you can have any number of case statements */
-		// 	default:
-		// 		// code to execute if expression doesn't match any case
-		// }
+		switch (effect_mode) {
+			case 0:
+				pitch_factor = 1.015; // chorus effect
+				break;
+			case 1:
+				pitch_factor = 1.189; // +3 semitones (minor third)
+				break;
+			case 2:
+				pitch_factor = 1.2599; // +4 semitones (major third)
+				break;
+			case 3:
+				pitch_factor = 1.3348; // +5 semitones (perfect fourth)
+				break;
+			case 4:
+				pitch_factor = 1.4983; // +7 semitones (perfect fifth)
+				break;
+			case 5:
+				pitch_factor = 2.0; // + 12 semitones (one octave)
+			default:
+				// code to execute if expression doesn't match any case
+		}
 
 		if (SW2_Pressed() && !sw2_pressed){
 			// call this code once when switch is pressed
 			sw2_pressed = 1;
-			effect_mode = (effect_mode + 1) % 2;
+			effect_mode = (effect_mode + 1) % 7;
 		}else if (sw2_pressed){
 			delay(10000); // simple & quick debounce method
 			if (!SW2_Pressed()){
@@ -307,7 +271,7 @@ int main(void){
 
 		if (SW3_Pressed() && !sw3_pressed){
 			// call this code once when switch is pressed
-			effect_mode = (effect_mode - 1 + 2) % 2; // wrap backwards
+			effect_mode = (effect_mode - 1 + 2) % 6; // wrap backwards
 		}else if (sw3_pressed){
 			delay(10000); // simple & quick debounce method
 			if (!SW3_Pressed()){
@@ -316,5 +280,3 @@ int main(void){
 		}
 	}
 }
-
-
